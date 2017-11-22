@@ -26,8 +26,6 @@ object Server extends App {
     }
   }
 
-  object EchoParamMatch extends ParamMatcher("reqText")
-
   val routingService = RoutingService.byPathObject[Request] {
     case Root => service
     case Root /  "echo" / message => echoService(message)
