@@ -25,7 +25,7 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
       val payload = Payload.mk(reqId, request.content)
       val pubResult = publisher.publish(topic, Payload.toBuf(payload))
       pubResult
-        .transform{
+        .transform {
           case Return(_) => // TODO this is where it would be better if we could store e.g. the offset that we got from kafka
             val completionPromise = new Promise[Buf]()
             meatLocker.putIfAbsent(reqId, completionPromise)
@@ -33,35 +33,35 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
           case Throw(e) =>
             Future.exception[Buf](e)
         }
-        .map{ completionResult =>
+        .map { completionResult =>
           val res = Response(Status.Ok)
           res.content(completionResult)
           res
         }
     }
+  }
 
-    val completeSvc = new Service[Request, Response] {
-      override def apply(request: Request): Future[Response] = {
+  val completeSvc = new Service[Request, Response] {
+    override def apply(request: Request): Future[Response] = {
 
-        val maybeStoredPromise = request.params.get("id")
-          .flatMap(meatLocker.get)
+      val maybeStoredPromise = request.params.get("id")
+        .flatMap(meatLocker.remove)
 
-        val resp = maybeStoredPromise match {
+      val resp = maybeStoredPromise match {
 
-          case Some(storedPromise) =>
-            // I am super-defensively copying shit around, might not need to
-            val copiedBuf: Buf = ByteBuffer.Owned(ByteBuffer.Shared.extract(request.content))
-            // this is it! set the promise with the value we got back
-            storedPromise.setValue(copiedBuf)
+        case Some(storedPromise) =>
+          // I am super-defensively copying shit around, might not need to
+          val copiedBuf: Buf = ByteBuffer.Owned(ByteBuffer.Shared.extract(request.content))
+          // this is it! set the promise with the value we got back
+          storedPromise.setValue(copiedBuf)
 
-            // Now return OK
-            Response(Status.Ok)
-          case None =>
-            Response(Status.NotFound)
-        }
-
-        Future.value(resp)
+          // Now return OK
+          Response(Status.Ok)
+        case None =>
+          Response(Status.NotFound)
       }
+
+      Future.value(resp)
     }
   }
 

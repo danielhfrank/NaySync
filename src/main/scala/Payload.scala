@@ -5,7 +5,8 @@ import com.twitter.io.Buf.ByteArray
 
 import io.circe._, io.circe.generic.semiauto._
 
-
+// TODO in a future version, this should be a callback URL, not just an id
+// (so that we can specify the host too)
 case class Payload(requestId: String, bodyBase64: String)
 
 object Payload {

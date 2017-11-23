@@ -7,28 +7,13 @@ import com.twitter.util.{Await, Future}
 import com.twitter.finagle.http.path._
 
 object Server extends App {
-  val service = new Service[Request, Response] {
-    def apply(req: Request): Future[Response] = {
-      val x = Response(req.version, Status.Ok)
-      x.setContentString("yo")
-      Future.value(
-        x
-      )
-    }
-  }
 
-  def echoService(message: String) = new Service[Request, Response] {
-    def apply(req: Request): Future[Response] = {
-      val rep = Response(req.version, Status.Ok)
-      rep.setContentString(message)
-
-      Future(rep)
-    }
-  }
+  val pub = new NSQPublisher
+  val mux = new NaySyncMux("test-naysync", pub)
 
   val routingService = RoutingService.byPathObject[Request] {
-    case Root => service
-    case Root /  "echo" / message => echoService(message)
+    case Root / "submit" => mux.submitSvc
+    case Root / "complete" => mux.completeSvc
   }
   val server = Http.serve(":8080", routingService)
   Await.ready(server)
