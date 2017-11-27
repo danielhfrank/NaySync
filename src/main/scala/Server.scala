@@ -13,7 +13,8 @@ object Server extends App {
 
   val routingService = RoutingService.byPathObject[Request] {
     case Root / "submit" => mux.submitSvc
-    case Root / "complete" => mux.completeSvc
+    case Root / "complete" / reqId => mux.completeSvc(reqId)
+    case Root / "retrieve" / reqId => mux.retrieveSvc(reqId)
   }
   val server = Http.serve(":8080", routingService)
   Await.ready(server)
