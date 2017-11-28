@@ -35,27 +35,31 @@ class NaySyncMux(callbackHost: String, publisher: QueuePublisher[_]) {
       val payload = Payload.mk(reqId, callbackHost, request.content)
       val pubResult = publisher.publish(topic, Payload.toBuf(payload))
 
-      pubResult
+      val lockerResult = pubResult
         .transform {
           case Return(_) => // TODO this is where it would be better if we could store e.g. the offset that we got from kafka
             meatLocker.putIfAbsent(reqId, completionPromise)
-            completionPromise.within(desiredTimeout.getOrElse(NaySyncMux.DEFAULT_TIMEOUT))
+            println(s"Put $reqId in the meat locker" )
+            Future { completionPromise.within(desiredTimeout.getOrElse(NaySyncMux.DEFAULT_TIMEOUT)) }
           case Throw(e) =>
-            Future.exception[Buf](e)
+            Future.exception[Future[Buf]](e)
         }
-        .map { completionResult =>
-          val res = Response(Status.Ok)
-          res.content(completionResult)
-          res
-        }
-        .rescue{
-          case _: TimeoutException =>
-            // We blew through the timeout above; return something nice to the user
-            // But first, remove ourselves from the meat locker
-            meatLocker.remove(reqId, completionPromise)
-            val res = NaySyncMux.responseFromString(request, Status.ServiceUnavailable, s"Exceeded timeout, request id is $reqId")
-            Future.value(res)
-        }
+      lockerResult.map{ contentPromise =>
+        Response(request.version, Status.Ok, NaySyncChunkedReader(reqId, contentPromise))
+      }
+//        .map { completionResult =>
+//          val res = Response(Status.Ok)
+//          res.content(completionResult)
+//          res
+//        }
+//        .rescue{
+//          case _: TimeoutException =>
+//            // We blew through the timeout above; return something nice to the user
+//            // But first, remove ourselves from the meat locker
+//            meatLocker.remove(reqId, completionPromise)
+//            val res = NaySyncMux.responseFromString(request, Status.ServiceUnavailable, s"Exceeded timeout, request id is $reqId")
+//            Future.value(res)
+//        }
     }
   }
 
