@@ -90,7 +90,7 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
   def retrieveSvc(reqId: String) = new Service[Request, Response] {
     override def apply(request: Request): Future[Response] = {
       Future.value{
-        lostAndFound.get(reqId)
+        lostAndFound.remove(reqId)
           .map{ storedVal =>
             NaySyncMux.responseFromBuf(request, Status.Ok, storedVal)
           }
