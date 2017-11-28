@@ -12,7 +12,7 @@ class ConsumerBase(object):
         msg_body = base64.decodestring(msg_outer['bodyBase64'])
         print 'Processing message %s with body "%s"' % (req_id, msg_body)
         result = self.logic(msg_body)
-        response = requests.post('http://127.0.0.1:8080/complete/%s' % req_id,
+        response = requests.post(msg_outer['callback'],
                                  data=result)
         print 'Completed callback with status %d' % response.status_code
         return True

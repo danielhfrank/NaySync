@@ -9,7 +9,7 @@ import com.twitter.util._
 
 import scala.collection.JavaConverters._
 
-class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
+class NaySyncMux(callbackHost: String, publisher: QueuePublisher[_]) {
 
   implicit val timer = new JavaTimer()
 
@@ -24,7 +24,7 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
     md5.digest().map("%02X".format(_)).mkString
   }
 
-  val submitSvc = new Service[Request, Response] {
+  def submitSvc(topic: String) = new Service[Request, Response] {
     override def apply(request: Request): Future[Response] = {
       val desiredTimeout = request.params.get("timeout_ms")
           .map(timeoutStr => Duration(timeoutStr.toLong, TimeUnit.MILLISECONDS))
@@ -32,7 +32,7 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
       val completionPromise = new Promise[Buf]()
 
       val reqId = mintId(request)
-      val payload = Payload.mk(reqId, request.content)
+      val payload = Payload.mk(reqId, callbackHost, request.content)
       val pubResult = publisher.publish(topic, Payload.toBuf(payload))
 
       pubResult

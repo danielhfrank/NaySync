@@ -8,11 +8,13 @@ import com.twitter.finagle.http.path._
 
 object Server extends App {
 
+  val CallbackHost = "http://127.0.0.1:8080" // could let user provide an accessible url via cmd line or something
+
   val pub = new NSQPublisher
-  val mux = new NaySyncMux("test-naysync", pub)
+  val mux = new NaySyncMux(CallbackHost, pub)
 
   val routingService = RoutingService.byPathObject[Request] {
-    case Root / "submit" => mux.submitSvc
+    case Root / "submit" / topic => mux.submitSvc(topic)
     case Root / "complete" / reqId => mux.completeSvc(reqId)
     case Root / "retrieve" / reqId => mux.retrieveSvc(reqId)
   }
