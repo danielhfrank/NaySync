@@ -8,6 +8,7 @@ class SleepConsumer(ConsumerBase):
 
     def logic(self, message_body):
         msg_dict = json.loads(message_body)
-        duration = msg_dict['sleep_s']
+        duration = msg_dict.get('sleep_s', 0.0)
         time.sleep(duration)
-        return msg_dict['echo']
+        result = msg_dict['echo'].upper().replace('?', '')
+        return result

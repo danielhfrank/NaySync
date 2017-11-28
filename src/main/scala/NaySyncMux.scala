@@ -18,19 +18,6 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
   // Putting this in separate map to simulate using external storage (would not want to pin lost requests to single host)
   val lostAndFound = new ConcurrentHashMap[String, Buf]().asScala
 
-  /*
-   TODO for next pass:
-   - stick a `within` on the end of our promise. catch it expiring and return a message to the user with the request id
-   - (maybe) make a fetch endpoint that takes a request id
-   - in the complete endpoint, if req id is not present in the map, don't return error to user. Instead, fill the meat locker
-     with a filled promise for the computed result
-   - similarly, in the submit endpoint, if a value is already present, take on that future instead of creating a new promise
-      (it will presumably be the filled one from a late arrival)
-
-      OPEN QUESTIONS - do all these enhancements miss the point by doing this in a non-distributed context? Would it be much
-      trouble to annex all of that to a secondary map so that we can separate out the parts that would have to be put in real storage?
-   */
-
   def mintId(req: Request): String = {
     val md5 = MessageDigest.getInstance("md5")
     md5.update(ByteBuffer.Shared.extract(req.content))
@@ -39,6 +26,9 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
 
   val submitSvc = new Service[Request, Response] {
     override def apply(request: Request): Future[Response] = {
+      val desiredTimeout = request.params.get("timeout_ms")
+          .map(timeoutStr => Duration(timeoutStr.toLong, TimeUnit.MILLISECONDS))
+
       val completionPromise = new Promise[Buf]()
 
       val reqId = mintId(request)
@@ -49,7 +39,7 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
         .transform {
           case Return(_) => // TODO this is where it would be better if we could store e.g. the offset that we got from kafka
             meatLocker.putIfAbsent(reqId, completionPromise)
-            completionPromise.within(Duration(1, TimeUnit.SECONDS))
+            completionPromise.within(desiredTimeout.getOrElse(NaySyncMux.DEFAULT_TIMEOUT))
           case Throw(e) =>
             Future.exception[Buf](e)
         }
@@ -113,6 +103,9 @@ class NaySyncMux(topic: String, publisher: QueuePublisher[_]) {
 }
 
 object NaySyncMux {
+
+  val DEFAULT_TIMEOUT = Duration(10, TimeUnit.SECONDS)
+
   private def responseFromString(request: Request, status: Status, content: String): Response = {
     val buf = Buf.ByteArray.Owned.apply(content.getBytes("utf-8"))
     responseFromBuf(request, status, buf)
