@@ -39,27 +39,23 @@ class NaySyncMux(callbackHost: String, publisher: QueuePublisher[_]) {
         .transform {
           case Return(_) => // TODO this is where it would be better if we could store e.g. the offset that we got from kafka
             meatLocker.putIfAbsent(reqId, completionPromise)
-            println(s"Put $reqId in the meat locker" )
-            Future { completionPromise.within(desiredTimeout.getOrElse(NaySyncMux.DEFAULT_TIMEOUT)) }
+            Future { completionPromise
+              .within(desiredTimeout.getOrElse(NaySyncMux.DEFAULT_TIMEOUT))
+                .onFailure{
+                  case _: TimeoutException =>
+                  // We blew through the timeout above;
+                  // need to remove ourselves from the meat locker
+                    // TODO maybe use ensure and not need to split responsibility?
+                   meatLocker.remove(reqId, completionPromise)
+                  case _ =>
+                }
+            }
           case Throw(e) =>
             Future.exception[Future[Buf]](e)
         }
       lockerResult.map{ contentPromise =>
         Response(request.version, Status.Ok, NaySyncChunkedReader(reqId, contentPromise))
       }
-//        .map { completionResult =>
-//          val res = Response(Status.Ok)
-//          res.content(completionResult)
-//          res
-//        }
-//        .rescue{
-//          case _: TimeoutException =>
-//            // We blew through the timeout above; return something nice to the user
-//            // But first, remove ourselves from the meat locker
-//            meatLocker.remove(reqId, completionPromise)
-//            val res = NaySyncMux.responseFromString(request, Status.ServiceUnavailable, s"Exceeded timeout, request id is $reqId")
-//            Future.value(res)
-//        }
     }
   }
 
