@@ -6,7 +6,7 @@ The year is 2017, and many of us are fully on [the log/queue bandwagon](https://
 It's been suggested that, in such a case, an API server could accept a request, enqueue it for later processing while still holding open the original request, and then return a response when the asynchronous processing completes - within a timeout, of course. NaySync is a server that does just this.
 
 The screencast below probably best illustrates this:
-![demo](img_todo)
+![demo](img/naysync-demo-smaller.gif)
 
 On the right we are running a consumer process that runs our application code (you can find the code in `test_receiver/sleep_consumer.py`. On the left we make curl requests to the server.
 1. In the first request, we submit a payload that is handled quickly and get back a response. We can see the consumer process it.
